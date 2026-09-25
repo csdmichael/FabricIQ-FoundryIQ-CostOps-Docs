@@ -318,14 +318,24 @@ A full enterprise business case and value proposition are maintained under
 
 - [Business Case](docs/business-case/business-case.md) — problem, solution, value model, and savings levers.
 - [Value Proposition](docs/business-case/value-proposition.md) — value pillars, governance modes, and stakeholder value.
+- [Executive Value & Architecture deck](docs/business-case) — the auditable planning model (spend scenarios, savings levers, and 90-day pilot).
 
-The **Business Value Showcase** is also available in the CostOps portal (Showcase tab): video series
-(placeholders), a selectable governance-mode value model, features, architecture, and try-it links.
+The **Business Value Showcase** is also available in the CostOps portal (Showcase tab): a value-proposition
+gadget, a selectable spend-scenario value model with savings levers and auditable assumptions, features,
+the end-to-end architecture diagram, and try-it links (user guide, setup guide, business case, and
+source-access request).
+
+## Setup & User Guide
+
+- [Setup & deployment guide](docs/setup/README.md) — provision Fabric, Power BI, Foundry, APIM, and the CostOps portal in your own Azure environment.
+- [CostOps user guide](docs/user-guide/README.md) — a screen-by-screen walkthrough of the portal ([PDF](docs/user-guide/AI-Tokenomics-User-Guide.pdf)).
 
 ---
 
 ## References
 
+- [Setup & deployment guide](docs/setup/README.md)
+- [CostOps user guide](docs/user-guide/README.md)
 - [Microsoft Fabric Documentation](https://learn.microsoft.com/fabric/)
 - [Microsoft Fabric Data Agent Overview](https://learn.microsoft.com/fabric/data-science/data-agent-overview)
 - [Power BI DirectQuery on Fabric Lakehouse](https://learn.microsoft.com/power-bi/connect-data/desktop-directquery-about)
