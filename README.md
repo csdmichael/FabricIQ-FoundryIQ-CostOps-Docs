@@ -127,7 +127,35 @@ layer that names the concepts a FinOps stakeholder actually reasons about (a *Pr
 Action*) and the relationships between them. The ontology maps each business class to the
 governed Lakehouse tables that back it (`prices.*`, `ml.*`) and the join keys that connect
 them, so questions can be answered against *meaning* rather than physical tables. It is
-defined declaratively in [`fabric/ontology/tokenomics-ontology.json`](https://github.com/csdmichael/FabricIQ-FoundryIQ-CostOps/blob/main/fabric/ontology/tokenomics-ontology.json).
+defined declaratively in [`fabric/ontology/tokenomics-ontology.json`](https://github.com/csdmichael/FabricIQ-FoundryIQ-CostOps/blob/main/fabric/ontology/tokenomics-ontology.json)
+and deployed to Fabric as a real **Fabric IQ Ontology** item (28 entity types + 28
+relationships, with descriptions, synonyms, and data bindings) by
+[`scripts/deploy-fabric-ontology.py`](https://github.com/csdmichael/FabricIQ-FoundryIQ-CostOps/blob/main/scripts/deploy-fabric-ontology.py).
+
+### Live in Fabric IQ
+
+The ontology is a governed **Fabric IQ Ontology** item — entity types, properties, and
+relationships are modeled and explorable directly in Microsoft Fabric, with each entity
+**bound to its backing OneLake table**. Every entity and property carries a description and
+business synonyms so both people and AI agents share the same vocabulary. The diagrams
+below are live captures from the Fabric portal.
+
+**The closed FinOps loop around `MLInsight`** — `ModelRun` **produces** an `MLInsight`,
+which is **derivedFrom** a `UsageEvent`, **usesPricesFrom** a `PricePoint`, and
+**recommends** an `Action`:
+
+![Fabric IQ ontology — MLInsight relationships](docs/ontology/fabric-iq-ontology-mlinsight.png)
+
+**Attribution & pricing around `UsageEvent`** — a `UsageEvent` **consumes** a `Model`, is
+**pricedBy** a `PricePoint`, **attributedTo** a `Project`/`Team`, and **chargedTo** a
+`CostCenter`:
+
+![Fabric IQ ontology — UsageEvent relationships](docs/ontology/fabric-iq-ontology-usageevent.png)
+
+**Entity metadata + data binding** — each entity's properties are typed, described, and
+bound to real columns in the governed Lakehouse (here `PricePoint` → `prices.token_price_history`):
+
+![Fabric IQ ontology — PricePoint properties bound to data](docs/ontology/fabric-iq-ontology-pricepoint-bound.png)
 
 ### Core ontology - the governed FinOps feedback loop
 
