@@ -6,9 +6,11 @@ Enterprise-grade multi-cloud AI Tokenomics, LLM model pricing normalization, pre
 
 - [Executive Summary & Multi-Cloud Tokenomics Use Case](#executive-summary--multi-cloud-tokenomics-use-case)
 - [Architecture & Medallion Lifecycle](#architecture--medallion-lifecycle)
+- [Business Context & Ontology](#business-context--ontology)
 - [Direct URLs & Portals](#direct-urls--portals)
 - [Multi-Cloud Model Pricing Engine](#multi-cloud-model-pricing-engine)
 - [12 PySpark Machine Learning Use Cases](#12-pyspark-machine-learning-use-cases)
+- [Fabric Lakehouse Schema & Semantic Model](#fabric-lakehouse-schema--semantic-model)
 - [Power BI Semantic Model, Reports & Dashboards](#power-bi-semantic-model-reports--dashboards)
 - [Ionic / Angular CostOps Web UI](#ionic--angular-costops-web-ui)
 - [Fabric Data Agent & Configurable Prompt Library](#fabric-data-agent--configurable-prompt-library)
@@ -114,6 +116,64 @@ flowchart TD
         SQL --> DataAgent["Tokenomics FinOps Analyst\n(Fabric Data Agent)"]
     end
 ```
+
+---
+
+## Business Context & Ontology
+
+Beyond raw tables, the platform is organized around a **business ontology** - a semantic
+layer that names the concepts a FinOps stakeholder actually reasons about (a *Provider*, a
+*Model*, a *Price Point*, a *Token Usage Event*, a *Budget*, an *ML Insight*, a *Recommended
+Action*) and the relationships between them. The ontology maps each business class to the
+governed Lakehouse tables that back it (`prices.*`, `ml.*`) and the join keys that connect
+them, so questions can be answered against *meaning* rather than physical tables. It is
+defined declaratively in [`fabric/ontology/tokenomics-ontology.json`](https://github.com/csdmichael/FabricIQ-FoundryIQ-CostOps/blob/main/fabric/ontology/tokenomics-ontology.json).
+
+### Core ontology - the governed FinOps feedback loop
+
+The heart of the model is a closed loop: **Pricing → Token Usage → ML Insight → Action.**
+Prices cost every usage event; the 12 ML algorithms derive insights from usage + prices;
+each insight recommends a concrete, governed action (model switch, quota/rate-limit change,
+reallocation, throttle guardrail) that targets a model, project, or policy.
+
+![Core Tokenomics Ontology](docs/ontology/tokenomics-ontology-core.png)
+
+### Full business ontology
+
+The complete class map, grouped by category (dimension, pricing, fact, governance,
+reference, value, ML output, action, lineage), mapped to the Lakehouse tables that back
+each class.
+
+![Full Tokenomics Ontology](docs/ontology/tokenomics-ontology-full.png)
+
+### Key entities & properties
+
+| Entity (class) | Backed by | Key properties | Purpose |
+| --- | --- | --- | --- |
+| **Provider** | `ml.tokenomics_usage_fact` | `source_code`, providerName | A cloud/model provider (AWS Bedrock, GCP Vertex, Azure OpenAI, OpenAI Direct, Anthropic Claude). |
+| **Model Family / Model** | `ml.tokenomics_usage_fact` | `model_family`, `model_name`, `model_version` | The model (and version) that consumes tokens and is priced. |
+| **Price Point** | `prices.token_price_history` | `effective_from/to`, `is_current`, `market_*`, `negotiated_*` per million | Effective-dated (SCD-2) token price - the **source of truth** for costing. |
+| **Token Usage Event** | `ml.tokenomics_usage_fact` | `usage_date`, `input/output/total_tokens`, `market/negotiated/actual_cost_usd`, `quality_score` | The Gold fact: governed consumption attributed to the full org hierarchy. |
+| **User / Team / Project / Dept / BU / Cost Center / Application** | usage fact + `ml.entity_assignment_history` | ids + `persona` | The organization hierarchy used for attribution and chargeback. |
+| **Budget** | `ml.budget_plan` | `budget_usd`, `approved_tpm/rpm` | Per-project monthly budget and approved throughput. |
+| **Quota** | `ml.quota_policy` | `current_tpm/rpm`, `minimum_headroom_pct` | Per-project, per-provider throughput quota. |
+| **Benchmark** | `ml.model_benchmark` | `quality_score`, cost per million, `approved_for_production` | Quality/cost benchmark per model + task type. |
+| **ML Insight** (12 subclasses) | `ml.ml_insight_fact` + `ml.*_output` | `use_case_key`, `risk_score`, `probability`, `predicted_cost_usd`, `estimated_savings_usd`, `recommendation` | A scored signal for an entity, produced by a PySpark algorithm. |
+| **Recommended Action** | `GET /actions` (derived) | `category`, `severity`, `estimatedAnnualImpactUsd`, `changes` | The concrete, reviewable FinOps action that closes the loop. |
+| **ML Model Run** | `ml.model_run_ledger` | `status`, `row_count`, `output_table`, `source_watermark` | Lineage of the training/inference run that produced insights. |
+
+### Key relationships
+
+| Relationship | Meaning | Type |
+| --- | --- | --- |
+| Model **offeredBy** Provider / **memberOf** Model Family | model taxonomy | association |
+| Price Point **pricesTokensOf** Model | effective-dated price for a model | temporal |
+| Token Usage Event **consumes** Model, **pricedBy** Price Point | usage costed by the price effective at the event date | temporal |
+| Token Usage Event **attributedTo** Project/Team, **chargedTo** Cost Center | attribution & chargeback | association |
+| Budget **constrains** Project · Quota **limits** Project@Provider | governance constraints | constraint |
+| ML Insight **derivedFrom** Usage, **usesPricesFrom** Price Point, **recommends** Action | analytics → action | derivation |
+| Model Optimization **proposesSwitchTo** Model · Quota Rec. **adjusts** Quota · Budget Overrun **threatens** Budget | concrete closed-loop actions | derivation |
+| ML Model Run **produces** ML Insight | lineage | lineage |
 
 ---
 
@@ -275,6 +335,123 @@ guardrails, prompt trimming, and chargeback — closing the analytics feedback l
 - **Highest-impact features:** Active-user ratio (highest), cost per active employee, negotiated vs. market savings rate, team adoption ranking.
 - **Output:** Enterprise adoption index with per-department rankings, cost-per-user, and cumulative savings.
 - **How to use it:** Target enablement where adoption lags and use the scorecard to govern the program and justify continued investment.
+
+---
+
+## Fabric Lakehouse Schema & Semantic Model
+
+The Lakehouse follows a **medallion** layout across three schema groups, all exposed to
+Power BI and the API through the Fabric **SQL analytics endpoint** (DirectQuery):
+
+- **Source (Bronze/Silver) schemas** - one per provider: `aws`, `gcp`, `msft`, `oai`, `cld` - each with a `token_consumption` table.
+- **Gold + ML schema** - `ml`: the conformed fact, reference/dimension tables, and the 12 ML output tables.
+- **Pricing schema** - `prices`: the governed, effective-dated price history (source of truth for costing).
+
+```mermaid
+flowchart LR
+  subgraph Sources["Source schemas (Bronze/Silver)"]
+    TC["aws/gcp/msft/oai/cld.token_consumption"]
+  end
+  subgraph Prices["prices"]
+    PH["token_price_history (SCD-2)"]
+  end
+  subgraph Gold["ml (Gold + ML)"]
+    UF["tokenomics_usage_fact"]
+    REF["Reference dims:\nmodel_benchmark, budget_plan,\nquota_policy, entity_assignment_history,\ncapacity_metric, business_outcome, release_calendar"]
+    OUT["12 x *_output"]
+    IF["ml_insight_fact"]
+    RL["model_run_ledger"]
+  end
+  TC --> UF
+  PH --> UF
+  UF --> OUT
+  REF --> OUT
+  OUT --> IF
+  RL -.-> OUT
+```
+
+### Source: `<provider>.token_consumption`
+Raw governed consumption events per provider (privacy-preserving; user ids are hashed).
+
+| Column | Type | Purpose |
+| --- | --- | --- |
+| `event_id`, `event_ts`, `usage_date` | string / datetime / date | Event identity and time. |
+| `source_code`, `region`, `account_id` | string | Provider, region, billing account. |
+| `model_family`, `model_name`, `model_version` | string | The model invoked. |
+| `user_id_hash`, `team_id`, `department_id`, `business_unit_id`, `cost_center_id`, `project_id`, `application_id`, `agent_id` | string | Full attribution hierarchy. |
+| `environment`, `task_type`, `prompt_template_id` | string | Workload context. |
+| `input_tokens`, `cached_input_tokens`, `cache_write_tokens`, `output_tokens`, `total_tokens`, `context_window_tokens` | int | Token counters. |
+| `tool_call_count`, `tool_success_count`, `retry_count`, `failure_count`, `latency_ms`, `status_code`, `is_stream` | int/bool | Quality & reliability signals. |
+| `reported_cost_usd`, `tasks_completed`, `hours_saved`, `tickets_reduced`, `code_generated_lines`, `quality_score` | double | Provider-reported cost and business outcomes. |
+
+### Gold fact: `ml.tokenomics_usage_fact`
+The conformed, priced fact that every report and ML model reads.
+
+| Column | Type | Purpose |
+| --- | --- | --- |
+| `event_id`, `event_ts`, `usage_date` | string / datetime / date | Grain: one governed usage event. |
+| `source_code`, `model_family`, `model_name`, `model_version` | string | Priced model dimension. |
+| `user_id_hash`, `team_id`, `department_id`, `business_unit_id`, `project_id`, `cost_center_id`, `application_id`, `environment`, `task_type` | string | Attribution dimensions. |
+| `request_count`, `input_tokens`, `cached_input_tokens`, `output_tokens`, `total_tokens` | int | Volume measures. |
+| `reported_cost_usd`, `market_cost_usd`, `negotiated_cost_usd`, `actual_cost_usd` | double | Distinct cost metrics (provider-reported, market list, negotiated, Azure-billed). |
+| `tasks_completed`, `quality_score` | int/double | Outcome & quality. |
+
+### Pricing: `prices.token_price_history` (source of truth)
+Effective-dated (SCD-2) token prices maintained by the pricing Azure Function; the API joins
+usage to the price effective at each event date to compute total consumption cost.
+
+| Column | Type | Purpose |
+| --- | --- | --- |
+| `price_id`, `snapshot_id` | string | Price row identity + provenance snapshot. |
+| `source_code`, `model_family`, `model_name`, `model_version` | string | The model priced. |
+| `effective_from`, `effective_to`, `is_current` | datetime / bool | Validity window of this price (SCD-2). |
+| `currency`, `unit_scale` | string / int | USD, per-million-tokens. |
+| `market_input_usd_per_million`, `market_cached_input_usd_per_million`, `market_cache_write_usd_per_million`, `market_output_usd_per_million` | double | Public list rates. |
+| `negotiated_input_usd_per_million`, `negotiated_cached_input_usd_per_million`, `negotiated_cache_write_usd_per_million`, `negotiated_output_usd_per_million` | double | Enterprise-negotiated rates. |
+| `source_type`, `source_name`, `source_uri`, `source_payload_sha256` | string | Auditable pricing provenance. |
+
+### Reference / dimension tables (`ml.*`)
+
+| Table | Key columns | Purpose |
+| --- | --- | --- |
+| `ml.model_price_snapshot` | `observed_at`, model, `*_usd_per_million`, `source_payload_sha256` | Raw as-of price observations (audit trail behind `prices`). |
+| `ml.model_benchmark` | model, `task_type`, `quality_score`, cost per million, `approved_for_production` | Quality/cost benchmark powering model-optimization. |
+| `ml.budget_plan` | `project_id`, `fiscal_month`, `budget_usd`, `approved_tpm/rpm` | Per-project budgets & approved throughput. |
+| `ml.quota_policy` | `project_id`, `source_code`, `current_tpm/rpm`, `minimum_headroom_pct` | Current quota per project/provider. |
+| `ml.entity_assignment_history` | `user_id_hash`, `persona`, org ids, `effective_from/to`, `is_current` | SCD-2 user→persona→org assignment. |
+| `ml.capacity_metric` | `event_ts`, `service`, `region`, `metric_value`, `capacity_limit` | Infrastructure capacity signals. |
+| `ml.business_outcome` | `task_id`, `project_id`, `outcome_type`, `outcome_count`, `estimated_business_value_usd` | Outcomes for ROI analytics. |
+| `ml.release_calendar` | `project_id`, `release_date`, `expected_usage_multiplier`, `release_type` | Planned releases for capacity/quota forecasting. |
+
+### ML outputs (`ml.*_output`, `ml.ml_insight_fact`, `ml.model_run_ledger`)
+All 12 output tables and the unified `ml.ml_insight_fact` share one common schema:
+
+| Column | Type | Purpose |
+| --- | --- | --- |
+| `run_id`, `scored_at`, `event_date` | string / datetime / date | Scoring run + as-of date. |
+| `use_case_key`, `use_case_name` | string | Which of the 12 algorithms produced the row. |
+| `entity_type`, `entity_id` + org/model columns | string | The scored entity (team, project, model, user...). |
+| `metric_name`, `metric_value`, `metric_unit` | string / double | The headline metric for the insight. |
+| `risk_score`, `probability`, `predicted_cost_usd`, `estimated_savings_usd` | double | Scored signal used by the Action Center. |
+| `recommendation`, `scoring_model_version`, `source_lineage` | string | Human recommendation + lineage. |
+
+`ml.model_run_ledger` tracks each notebook run (`run_id`, `use_case_key`, `status`,
+`row_count`, `output_table`, `source_watermark`) for observability and incremental scoring.
+
+### Semantic model - `Tokenomics FinOps Model`
+A **DirectQuery** Power BI model over the SQL endpoint (no data copy - always live). It
+surfaces four core semantic tables plus one table per ML algorithm:
+
+- **Usage** → `ml.tokenomics_usage_fact` (measures: Total Tokens, Market/Negotiated/Actual Cost, Savings, Cost per Request).
+- **Price History** → `prices.token_price_history` (measures: Market/Negotiated Input & Output Rate).
+- **ML Insights** → `ml.ml_insight_fact` (measures: Output Rows, Avg Risk/Probability, Predicted Cost, Estimated Savings).
+- **Model Runs** → `ml.model_run_ledger` (measures: Run/Successful/Failed Runs, Rows Scored).
+- **ML 01..12** → each `ml.*_output` for dedicated per-algorithm report pages.
+
+Tables are conformed on shared business keys (`source_code`, `model_name`/`model_version`,
+`team_id`, `project_id`, `cost_center_id`, `usage_date`) - the same keys defined in the
+[ontology](#business-context--ontology) - so slicers filter consistently across usage,
+pricing, and ML pages.
 
 ---
 
