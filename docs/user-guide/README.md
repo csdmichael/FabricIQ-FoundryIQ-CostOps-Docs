@@ -18,7 +18,9 @@ The CostOps portal is the governed control plane for multi-cloud AI FinOps. It u
 | Model Pricing | pricetag | Live rate cards and a cost calculator across providers. |
 | Power BI Reports | bar-chart | Embedded executive and ML dashboards. |
 | 12 ML Insights | sparkles | Outputs of the twelve PySpark ML use cases. |
+| Action Center | bulb | Data-driven, reviewable actions from ML outputs (the closed loop). |
 | Data Agent Chat | chatbubbles | Ask FinOps questions in natural language. |
+| ML Guide | help-circle | Reference for the 12 algorithms: features, output, how to act. |
 | Showcase | trending-up | Business value, architecture, and try-it links. |
 
 ## 1. Business Value Showcase
@@ -113,6 +115,25 @@ The Model Pricing catalog shows live, effective-dated rate cards across AWS Bedr
 - Live rate cards for all five providers.
 - Market vs negotiated comparison and a pricing calculator.
 
+> **Source of truth:** rate cards are served from the governed `prices.token_price_history` table in Fabric — an effective-dated (SCD-2) price history. The API also computes total consumption cost by joining each usage event to the price that was effective on its date, so cost is always reconciled to the governed price at time of use.
+
+## 5b. Action Center — Closing the FinOps Loop
+
+The Action Center turns ML and analytics outputs into concrete, reviewable **actions** — it closes the loop between insight and change. Every plan is derived live from the governed `ml.*_output` tables; nothing is hard-coded.
+
+**How to use it**
+
+- Review the projected annual and monthly impact summary at the top.
+- Filter plans by category: model switching, token/rate limits, quota reallocation, throttle guardrails, prompt efficiency, and chargeback.
+- Open a plan to see its source algorithm, a **current → proposed** change preview (for example an APIM `rate-limit-by-key` change or a model swap), the projected impact, and confidence.
+- Export the action plan as JSON to hand to a change/approval workflow.
+
+**Key elements**
+
+- Impact summary (annual/monthly savings and cost-avoidance).
+- Per-plan current-vs-proposed change previews tied to the source ML output.
+- Category filters and one-click plan export.
+
 ## 6. Power BI Reports & Dashboards
 
 ![Power BI Reports & Dashboards](images/05-powerbi.png)
@@ -165,7 +186,28 @@ The Data Agent Chat turns the governed lakehouse into plain-language answers. It
 **Key elements**
 
 - Conversational FinOps analyst over governed Delta tables.
-- Categorized Saved Prompt Library (executive, anomalies, optimization, quality, quota).
+- Categorized Saved Prompt Library: executive, anomalies, optimization, quality, quota, **Model Pricing**, and **Business Ontology**.
+
+**Pricing & ontology questions**
+
+The agent can now answer **pricing** questions from the governed `prices` schema — current rate cards, when a model's price changed (effective-dated history), and total consumption cost computed from the price effective at each usage date. It can also answer **business-context / ontology** questions grounded in the ontology (business classes, their properties, and relationships such as *PricePoint pricesTokensOf Model* and *ML Insight recommends Action*). Try the "Model Pricing" and "Business Ontology" prompt categories.
+
+## 9. ML Guide (Help)
+
+![ML Algorithm Guide](images/09-ml-guide.png)
+
+The ML Guide is a reference for all twelve algorithms. For each one it explains, in plain language, what it does, the technique it uses, its highest-impact features, the output table it writes, and — crucially — how to turn that output into action.
+
+**How to use it**
+
+- Expand any algorithm to read its explanation, top-impact features, and output.
+- Follow the "How to use it (close the loop)" note to see the recommended action.
+- Use the shortcut button to jump straight to the matching plans in the Action Center.
+
+**Key elements**
+
+- All 12 algorithms with technique, features, output, and how-to-act guidance.
+- Direct links from each algorithm to its Action Center category.
 
 ## Tips
 
@@ -176,11 +218,16 @@ The Data Agent Chat turns the governed lakehouse into plain-language answers. It
 
 ## Troubleshooting
 
-| Symptom | What to check |
+The portal now shows the **real reason** for a failure plus a **"What to do"** remediation and a collapsible technical detail, instead of a generic error. Common cases:
+
+| Symptom (shown reason) | What to do |
 | --- | --- |
-| Stuck on "Loading governed usage telemetry" | Confirm sign-in completed and the API/gateway is reachable from your network. |
+| "Microsoft Fabric capacity is paused or resuming." | Resume the Fabric capacity (Azure portal → Fabric capacity → Resume, or `az fabric capacity resume`); a cold start takes ~30–60s, then Retry. |
+| "The analytics API is not configured yet." | Publish `runtime-config.json` with the API base URL and sign in. |
+| "The analytics API could not authenticate to Fabric." | Sign in again and confirm the API's managed identity has access to the Fabric workspace SQL endpoint. |
+| "The Fabric SQL query timed out." / "…is unreachable." | The capacity may be resuming or under load; wait a few seconds and Retry (the app also retries transient errors automatically and fails fast via a circuit breaker to avoid long hangs). |
 | Power BI report does not embed | Verify Power BI embedding tenant settings and that your account has report access. |
-| Data Agent returns no answer | Check Foundry -> APIM -> Fabric Data Agent connectivity and your delegated permissions. |
+| Data Agent returns no answer | Check Foundry → APIM → Fabric Data Agent connectivity and your delegated permissions. |
 | Empty KPI cards | Widen the observation window or clear the provider filter; confirm the lakehouse has data. |
 
 ## More

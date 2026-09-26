@@ -81,6 +81,8 @@ the dependencies.
 | Workspace | A Fabric **workspace** (`<workspace-name>`) on that capacity. | Visible in the Fabric portal; you have Admin/Member. |
 | Lakehouse | A Lakehouse named **`lh_tokenomics`**. | Bronze/Silver/Gold Delta tables are created by the provisioning scripts. |
 | Gold fact | `ml.tokenomics_usage_fact` plus the 12 `ml.*` output tables. | Materialized by [`sync-tokenomics-to-fabric.ps1`](https://github.com/csdmichael/FabricIQ-FoundryIQ-CostOps/blob/main/scripts/sync-tokenomics-to-fabric.ps1). |
+| Prices (source of truth) | `prices.token_price_history` — effective-dated (SCD-2) token prices. | Costing joins usage to the price effective at each usage date; the API's `/pricing` and `/pricing/consumption` read this schema. |
+| Ontology graph (optional, preview) | A Fabric IQ **Ontology / GraphModel** item over `prices.*` and `ml.*`. | Provides a governed semantic/graph layer for agents and cross-domain reasoning. |
 | SQL endpoint | The Lakehouse **SQL analytics endpoint** host. | The API reads through this endpoint; capture the host into config. |
 | Data Agent | A Fabric **Data Agent** (`Tokenomics FinOps Analyst`) over the Lakehouse + ML tables. | The agent answers natural-language FinOps questions. |
 
@@ -91,7 +93,7 @@ into the `fabric` block of `config/deployment.json`.
 
 | Item | Required setup | Verify |
 | --- | --- | --- |
-| Semantic model | `Tokenomics FinOps Model` (DirectQuery over the Fabric SQL endpoint). | Published by [`publish-tokenomics-powerbi.ps1`](https://github.com/csdmichael/FabricIQ-FoundryIQ-CostOps/blob/main/scripts/publish-tokenomics-powerbi.ps1). |
+| Semantic model | `Tokenomics FinOps Model` (DirectQuery over the Fabric SQL endpoint). | Published by [`publish-tokenomics-powerbi.ps1`](https://github.com/csdmichael/FabricIQ-FoundryIQ-CostOps/blob/main/scripts/publish-tokenomics-powerbi.ps1). The Price History table reads from `prices.token_price_history`. |
 | Reports | `Tokenomics Consumption and Cost Analytics` and `Tokenomics ML Insights`. | Both open on live data. |
 | Dashboards | `Tokenomics FinOps Executive Dashboard` and `Tokenomics ML Operations Dashboard`. | Tiles render from the semantic model. |
 | Embedding | Tenant settings allow the required embedding / service principal usage. | The UI Power BI viewer embeds the reports for signed-in users. |
@@ -165,6 +167,14 @@ Token telemetry from the five providers (and Foundry via Log Analytics) is seede
 medallion Lakehouse. For a demo, [`seed-tokenomics-data.ps1`](https://github.com/csdmichael/FabricIQ-FoundryIQ-CostOps/blob/main/scripts/seed-tokenomics-data.ps1)
 generates synthetic multi-cloud usage.
 
+**Governed price history & refresh.** Normalized prices land in the **`prices.token_price_history`**
+table — an effective-dated (SCD-2) history that is the **single source of truth** for costing. A timer-triggered
+**pricing Azure Function** (config block `pricingFunction`, hosted on the same App Service plan as the API)
+calls the provider pricing sources on a schedule, diffs against the current prices, and appends only changed
+rows to `prices.token_price_history` in OneLake via managed identity. The API's `/pricing` returns the current
+rate cards and `/pricing/consumption` computes total cost by joining usage to the price effective at each
+usage date.
+
 ## 3. Configuration
 
 Make these changes in your **copy of the application repository**, before deployment.
@@ -182,6 +192,8 @@ Replace the reference values with your own in each block:
 | `identity` | API and dashboard app display names/IDs, delegated scopes, downstream delegated permissions, and the allow-list (`allowedUserPrincipalName`, `allowedUserObjectIds`). |
 | `network` | VNet/subnet resource IDs and private-endpoint subnet for your approved network. |
 | `foundry` | Foundry project name/location and model deployment for the agent. |
+| `dashboardApi` | API schema/table names including `pricesSchema` (`prices`) and `pricesTable` (`token_price_history`), window sizes, and CORS origins. |
+| `pricingFunction` | Pricing Azure Function app name, the existing App Service plan to reuse, storage account, and the refresh `schedule` (CRON). |
 | `ui` | UI hostname / App Service name. |
 | `tags` | Cost-center and ownership tags for provisioned resources. |
 
@@ -191,7 +203,8 @@ None of these values is a secret; secrets belong in Key Vault or protected App S
 
 Review [`config/tokenomics-prompts.json`](https://github.com/csdmichael/FabricIQ-FoundryIQ-CostOps/blob/main/config/tokenomics-prompts.json)
 to tailor the Data Agent **Saved Prompt Library** categories (executive summary, anomalies & overruns,
-model optimization, prompt quality, quota & capacity). These drive the Data Agent Chat screen.
+model optimization, prompt quality, quota & capacity, **Model Pricing**, and **Business Ontology**). These
+drive the Data Agent Chat screen.
 
 ### 3c. UI runtime config & API app settings
 
