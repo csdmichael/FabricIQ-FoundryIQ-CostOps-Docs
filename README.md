@@ -182,6 +182,100 @@ Under the Fabric workspace folder `ML/`, 12 distinct FinOps algorithms process L
 | 11 | **Capacity Planning** | `11 - Capacity Planning` | `11 - Capacity Planning - Training` | `11 - Capacity Planning - Inference` | `ml.capacity_planning_output` |
 | 12 | **Executive Adoption Scorecard** | `12 - Executive AI Adoption Scorecard` | `12 - Executive AI Adoption Scorecard - Training` | `12 - Executive AI Adoption Scorecard - Inference` | `ml.executive_adoption_output` |
 
+### What each algorithm does, the features it uses, and how to act on the output
+
+Every inference notebook writes to the common `ml.*_output` schema
+(`entity_type`, `entity_id`, `team_id`, `project_id`, `model_name`, `risk_score`,
+`probability`, `predicted_cost_usd`, `estimated_savings_usd`, `recommendation`, …)
+and is rolled up into `ml.ml_insight_fact`. The **FinOps Action Center** in the UI
+reads these tables live and turns each signal into a concrete, reviewable action —
+model switching, APIM token/rate-limit changes, quota reallocation, throttle
+guardrails, prompt trimming, and chargeback — closing the analytics feedback loop.
+
+#### 01 · Anomaly Detection → `ml.anomaly_detection_output`
+- **What it does:** Continuously watches every provider's token stream and flags abnormal spikes, runaway agent loops, and sudden context-window blow-ups before they become a surprise invoice.
+- **Algorithm:** Isolation Forest + Seasonal-Trend Decomposition (STL) on hourly token and cost series.
+- **Highest-impact features:** Prompt tokens/hour vs. seasonal baseline (highest), request retry count, context-window growth, RPM deviation.
+- **Output:** One row per flagged entity/window with `risk_score`, `probability`, and the offending metric vs. its STL baseline.
+- **How to use it:** Route the top anomalies into an APIM throttle guardrail (`rate-limit-by-key`) for the offending team/subscription during the spike window and open a review ticket.
+
+#### 02 · Cost Forecasting → `ml.cost_forecast_output`
+- **What it does:** Projects multi-cloud AI spend 30/90 days out with confidence bands so Finance sees overruns against the annual commitment before they happen.
+- **Algorithm:** Prophet + AutoARIMA time-series forecasting with weekly/monthly seasonality and onboarding-velocity regressors.
+- **Highest-impact features:** Daily negotiated-cost trend (highest), team onboarding velocity, seasonality, model-mix shift.
+- **Output:** Forecasted daily/period cost with lower/upper 95% confidence bounds and MAPE accuracy per scope.
+- **How to use it:** When the upper band breaches budget, trigger a capacity or reallocation plan proactively instead of reactively.
+
+#### 03 · Cost Attribution & Chargeback → `ml.cost_attribution_chargeback_output`
+- **What it does:** Attributes every token invoice down to Department, Project, Cost Center, and Environment so no spend is unallocated and chargeback is defensible.
+- **Algorithm:** Deterministic attribution join over hashed sessions and gateway client headers with a hierarchical business-entity rollup.
+- **Highest-impact features:** Gateway client/subscription id (highest), hashed user→department mapping, project/cost-center tags, environment.
+- **Output:** Fully attributed cost per entity with an attributed-share percentage and any residual unallocated margin.
+- **How to use it:** Publish monthly chargeback statements per cost center and reallocate shared-platform cost by observed token share.
+
+#### 04 · User Segmentation → `ml.user_segmentation_output`
+- **What it does:** Groups users into behavioural personas by token intensity, tool usage, and prompt depth so model routing and enablement can be tailored per cohort.
+- **Algorithm:** K-Means (silhouette-tuned k) and DBSCAN for outlier personas on standardized behavioural features.
+- **Highest-impact features:** Tokens per active day (highest), tool-call/agent usage ratio, average prompt depth, frontier-model share.
+- **Output:** Each user assigned to a persona cluster with intensity/tool-usage centroids and cohort token share.
+- **How to use it:** Apply persona-based model routing — move heavy researchers to large-context efficient models, reserve frontier models for agent builders.
+
+#### 05 · Token Efficiency Scoring → `ml.token_efficiency_output`
+- **What it does:** Scores how much useful business outcome each application gets per token, exposing waste from low cache reuse and bloated tool calls.
+- **Algorithm:** Weighted multi-factor composite score (cost-per-task, tokens-per-outcome, cache-hit ratio, tool-call efficiency) with percentile ranking.
+- **Highest-impact features:** Cache-read hit ratio (highest), tokens per completed task, tool-call success efficiency, output/input ratio.
+- **Output:** Per-application efficiency score (0–100) with contributing sub-factors and ranking vs. the enterprise median.
+- **How to use it:** Target the lowest-scoring apps first: enable prompt caching and trim context to lift the score and cut input-token spend.
+
+#### 06 · Budget Overrun Prediction → `ml.budget_overrun_output`
+- **What it does:** Predicts which projects will blow past their quarterly token allocation, and by how much, while there is still time to act.
+- **Algorithm:** Gradient Boosted Trees (XGBoost) on burn-rate and team-growth features.
+- **Highest-impact features:** Current burn rate vs. allocation (highest), team expansion velocity, agent adoption curve, workload seasonality.
+- **Output:** Per-project overrun probability, projected overage in USD, and the expected breach date.
+- **How to use it:** For high-risk projects, reallocate unused quota from safe projects or drop non-critical workloads to a cheaper tier before the breach date.
+
+#### 07 · Model Optimization Recommendation Engine → `ml.model_optimization_output`
+- **What it does:** Finds workloads on expensive frontier models that a cheaper model can serve at equal quality, and quantifies the savings of switching.
+- **Algorithm:** Task classifier over prompt embeddings mapped against a model performance/price benchmark matrix.
+- **Highest-impact features:** Task type/prompt-embedding class (highest), benchmark quality-parity score, current model price, workload token volume.
+- **Output:** Per-workload current model, recommended target model, quality-parity score, and estimated annualized savings.
+- **How to use it:** Apply the recommended model map to the routing layer for zero-quality-loss workloads (e.g. summarization → mini/Nova tier).
+
+#### 08 · Agent ROI Analytics → `ml.agent_roi_output`
+- **What it does:** Ties token cost to real business outcomes (PRs merged, tickets resolved, hours saved) so you fund agents that pay for themselves.
+- **Algorithm:** Cost-to-outcome correlation and ROI ratio modeling per agent/business unit.
+- **Highest-impact features:** Outcome events per 1K tokens (highest), hours automated per agent, token cost per outcome, business-unit value weighting.
+- **Output:** Per-agent ROI ratio, net monthly value, and the outcome metrics that drove it.
+- **How to use it:** Reallocate budget toward the highest-ROI agents and put low-ROI agents on a cheaper tier or a review list.
+
+#### 09 · Intelligent Quota Management → `ml.quota_management_output`
+- **What it does:** Predicts TPM/RPM exhaustion before the gateway returns 429s and rebalances quota across teams.
+- **Algorithm:** Short-horizon TPM/RPM demand forecasting with a capacity-pool constraint solver.
+- **Highest-impact features:** Peak TPM vs. assigned quota (highest), upcoming release/onboarding calendar, historical 429 near-miss rate, idle headroom.
+- **Output:** Per-team recommended TPM/RPM adjustments, reclaimable headroom, and predicted throttling events avoided.
+- **How to use it:** Apply the recommended `rate-limit-by-key` / TPM changes in APIM ahead of peak, reclaiming idle quota from over-provisioned teams.
+
+#### 10 · Prompt Quality Analytics → `ml.prompt_quality_output`
+- **What it does:** Scores prompt hygiene — bloated system instructions, repeated context, high retry loops — and quantifies the tokens you can safely cut.
+- **Algorithm:** Prompt feature extraction with repetition/entropy scoring and retry-pattern detection.
+- **Highest-impact features:** Repeated system-instruction tokens (highest), context-window utilization, retry count per prompt, cacheable repetition ratio.
+- **Output:** Per-prompt/app bloat percentage, reducible token count, and estimated annual savings from trimming.
+- **How to use it:** Trim and cache the worst-offending pipelines (e.g. RAG system prompts) to cut input-token spend without changing model or output.
+
+#### 11 · Capacity Planning → `ml.capacity_planning_output`
+- **What it does:** Forecasts infrastructure needs — gateway throughput, regional model capacity, vector indices — across a 12-month horizon so provisioning stays ahead of growth.
+- **Algorithm:** Long-horizon capacity forecasting with regional load distribution and commitment-attainment modeling.
+- **Highest-impact features:** Projected peak gateway RPS (highest), regional traffic distribution, multi-region growth multiplier, MACC commitment burn.
+- **Output:** Forecasted capacity requirements per region with recommended provisioning dates and commitment-attainment track.
+- **How to use it:** Schedule gateway/model capacity provisioning ahead of the forecasted breach date and steer traffic to keep MACC attainment on track.
+
+#### 12 · Executive AI Adoption Scorecard → `ml.executive_adoption_output`
+- **What it does:** Rolls the whole program into an executive scorecard — adoption, cost per active employee, negotiated savings, team rankings — for board-level FinOps reporting.
+- **Algorithm:** Weighted KPI aggregation and index scoring across adoption, efficiency, and savings dimensions.
+- **Highest-impact features:** Active-user ratio (highest), cost per active employee, negotiated vs. market savings rate, team adoption ranking.
+- **Output:** Enterprise adoption index with per-department rankings, cost-per-user, and cumulative savings.
+- **How to use it:** Target enablement where adoption lags and use the scorecard to govern the program and justify continued investment.
+
 ---
 
 ## Power BI Semantic Model, Reports & Dashboards
@@ -207,7 +301,9 @@ A full-featured, responsive Angular application built with standalone components
 3. **Multi-Cloud Model Pricing Catalog:** Live rate cards across AWS Bedrock, GCP Vertex AI, Azure OpenAI, OpenAI Direct, and Anthropic Claude with pricing calculator and enterprise discount comparisons.
 4. **Power BI Report Viewer:** Embedded views and direct navigation for Fabric Power BI reports and dashboards with date/time, department, and provider slicers.
 5. **12 ML Insight Dashboards:** Interactive visualization of all 12 PySpark ML use cases (anomaly flags, budget overrun risk probabilities, prompt quality scores, model optimization downgrade savings, and quota recommendations).
-6. **Fabric Data Agent Chat & Saved Prompt Library:** Conversational AI interface communicating with the Fabric Data Agent, backed by a categorized, data-driven prompt library.
+6. **FinOps Action Center (closed feedback loop):** Turns the live `ml.*_output` tables into concrete, reviewable actions — model switching, APIM token/rate-limit changes, quota reallocation, throttle guardrails, prompt trimming, and chargeback — each with the source algorithm, a current→proposed change preview, projected impact, and an exportable plan. Served from the `GET /actions` API; nothing is hard-coded.
+7. **ML Guide (help):** Reference page explaining all 12 algorithms — what each does, the technique it uses, its highest-impact features, the output it produces, and how to turn that output into action.
+8. **Fabric Data Agent Chat & Saved Prompt Library:** Conversational AI interface communicating with the Fabric Data Agent, backed by a categorized, data-driven prompt library.
 
 ---
 
