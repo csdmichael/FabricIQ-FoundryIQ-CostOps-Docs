@@ -74,6 +74,8 @@ This platform solves multi-cloud tokenomics end-to-end on **Microsoft Fabric**:
 
 ![AI Tokenomics Architecture](docs/AI%20Tokenomics%20Architecture.png)
 
+*Unified view of AI token consumption, cost, and usage across Azure, Microsoft Fabric, and Power BI — Microsoft (APIM + Foundry + Log Analytics) and other-provider token telemetry, plus real-time multi-cloud pricing, are ingested via Fabric Dataflow Gen2 into a governed Bronze/Silver/Gold Lakehouse (Medallion Architecture) with an optional Fabric Data Agent (and Fabric Ontology), surfaced through Microsoft Foundry, the CostOps Web UI, and Power BI.*
+
 The platform unifies all multi-cloud AI telemetry through a governed Fabric lifecycle:
 
 1. **Raw Tier:** Immutable provider events from AWS Bedrock, GCP Vertex AI, OpenAI Direct, Anthropic Claude, and Azure API Management / Foundry land in Azure Blob Storage under `/tokenomics-raw/consumption/v1/{provider}/`.
