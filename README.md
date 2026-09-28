@@ -5,7 +5,7 @@ Enterprise-grade multi-cloud AI Tokenomics, LLM model pricing normalization, pre
 ## Contents
 
 - [Executive Summary & Multi-Cloud Tokenomics Use Case](#executive-summary--multi-cloud-tokenomics-use-case)
-- [Architecture & Medallion Lifecycle](#architecture--medallion-lifecycle)
+- [Architecture & Data Flow](#architecture--data-flow)
 - [Business Context & Ontology](#business-context--ontology)
 - [Direct URLs & Portals](#direct-urls--portals)
 - [Multi-Cloud Model Pricing Engine](#multi-cloud-model-pricing-engine)
@@ -13,7 +13,7 @@ Enterprise-grade multi-cloud AI Tokenomics, LLM model pricing normalization, pre
 - [Fabric Lakehouse Schema & Semantic Model](#fabric-lakehouse-schema--semantic-model)
 - [Power BI Semantic Model, Reports & Dashboards](#power-bi-semantic-model-reports--dashboards)
 - [Ionic / Angular CostOps Web UI](#ionic--angular-costops-web-ui)
-- [Fabric Data Agent & Configurable Prompt Library](#fabric-data-agent--configurable-prompt-library)
+- [Foundry Agent & Configurable Prompt Library](#foundry-agent--configurable-prompt-library)
 - [Security, Privacy & Governance](#security-privacy--governance)
 - [Configuration & Deployment](#configuration--deployment)
 - [Business Case & Value Proposition](#business-case--value-proposition)
@@ -27,11 +27,11 @@ Enterprise-grade multi-cloud AI Tokenomics, LLM model pricing normalization, pre
   │                           Multi-Cloud AI Tokenomics & FinOps Platform                            │
   └──────────────────────────────────────────────────────────────────────────────────────────────────┘
             │                                 │                                  │
-    [Multi-Cloud Ingestion]       [Dynamic Pricing Engine]           [Fabric Medallion Lakehouse]
-    • AWS Bedrock                 • AWS Price List Bulk API          • Bronze / Silver Schemas:
-    • GCP Vertex AI               • GCP Cloud Billing Catalog          aws, gcp, oai, cld, msft
-    • Azure OpenAI / Foundry      • Azure Retail Prices API          • Gold ml.tokenomics_usage_fact
-    • OpenAI Direct               • OpenAI & Anthropic Snapshots     • 12 PySpark ML Models (ml.*)
+    [Multi-Cloud Ingestion]       [Dynamic Pricing Engine]           [Fabric Tokenomics Workspace]
+    • AWS Bedrock                 • AWS Price List Bulk API          • Lakehouse: Token Consumption
+    • GCP Vertex AI               • GCP Cloud Billing Catalog          Tables (source_*, per provider)
+    • Azure OpenAI / Foundry      • Azure Retail Prices API          • ML Output Tables (ml_*)
+    • OpenAI Direct               • OpenAI & Anthropic Snapshots     • Fabric Data Agent (semantic Q&A)
     • Anthropic Claude            • SHA-256 Provenance & As-Of Rate  • Fabric SQL Analytics Endpoint
             │                                 │                                  │
             └─────────────────────────────────┼──────────────────────────────────┘
@@ -42,7 +42,7 @@ Enterprise-grade multi-cloud AI Tokenomics, LLM model pricing normalization, pre
                         │ • Power BI DirectQuery Semantic Model    │
                         │ • FinOps Consumption & Cost Reports      │
                         │ • 12 ML Insights Predictive Dashboards   │
-                        │ • Fabric Data Agent (FinOps Analyst)     │
+                        │ • Foundry Agent (Tokenomics FinOps Analyst)│
                         │ • Ionic/Angular CostOps Web Portal       │
                         │ • Data-Driven Configurable Prompt Library│
                         └──────────────────────────────────────────┘
@@ -61,28 +61,26 @@ Without centralized governance, enterprise FinOps teams face severe visibility g
 This platform solves multi-cloud tokenomics end-to-end on **Microsoft Fabric**:
 1. **Multi-Cloud Ingestion & Cleansing:** Ingests raw telemetry from all 5 providers into Azure Blob Storage and normalizes records into Azure Cosmos DB with pseudonymized user hashing (`user_id_hash`), consistent schema tagging (`aws`, `gcp`, `oai`, `cld`, `msft`), and request/token metrics.
 2. **Time-Series Model Pricing Synchronization:** Regularly polls published pricing APIs (AWS Bulk Price List, Google Cloud Billing, Azure Retail Prices, OpenAI, Anthropic), snapshots raw responses with cryptographic SHA-256 provenance hashes in `model_price_snapshot`, and builds contiguous non-overlapping `[effective_from, effective_to)` rate cards in `model_price_history` tracking input, cached input, cache write, and output token rates per million.
-3. **Governed Fabric Medallion Architecture:** Stages multi-cloud streams into Lakehouse Bronze/Silver Delta tables, executes deterministic timestamp joins against effective pricing to generate `ml.tokenomics_usage_fact`, and preserves distinct measures for reported, market benchmark, negotiated, and billed actual costs.
+3. **Governed Fabric Lakehouse Architecture:** Stages multi-cloud streams into governed Lakehouse Delta tables, executes deterministic timestamp joins against effective pricing to generate `ml.tokenomics_usage_fact`, and preserves distinct measures for reported, market benchmark, negotiated, and billed actual costs.
 4. **12 Production PySpark ML Notebooks:** Executes 12 dedicated use cases (each with paired Training/Feature-Engineering and Inference/Scoring notebooks) to predict budget overruns, detect cost anomalies, forecast spending, calculate agent ROI, score token and prompt efficiency, segment users, optimize model selection, and automate quota management.
 5. **DirectQuery Power BI & Dashboards:** Surfaces 16 Lakehouse tables via the Fabric SQL endpoint directly to `Tokenomics FinOps Model`, Power BI reports, and executive dashboards.
-6. **Ionic / Angular CostOps Portal & Fabric Data Agent Chat:** A responsive TypeScript web application featuring interactive tokenomics dashboards, Power BI report viewers, ML notebook insight explorers, model rate card comparison calculators, and an AI chat assistant connected to the **Fabric Data Agent** (`Tokenomics FinOps Analyst`) with a data-driven, configurable **Saved Prompt Library**.
+6. **Ionic / Angular CostOps Portal & Foundry Agent Chat:** A responsive TypeScript web application featuring interactive tokenomics dashboards, Power BI report viewers, ML notebook insight explorers, model rate card comparison calculators, and an AI chat assistant powered by a **Microsoft Foundry Agent** (`Tokenomics FinOps Analyst`) with function tools that query the same Lakehouse Gold and ML output tables served by the Fabric Data Agent, backed by a data-driven, configurable **Saved Prompt Library**.
 
 > **Sister Repository:** For caller-delegated Microsoft Foundry and Copilot Studio On-Behalf-Of (OBO) gateway integration with Microsoft Fabric Lakehouse and Data Agents, see [Foundry-Fabric-OBO-Gateway](https://github.com/csdmichael/Foundry-Fabric-OBO-Gateway).
 
 ---
 
-## Architecture & Medallion Lifecycle
+## Architecture & Data Flow
 
 ![AI Tokenomics Architecture](docs/AI%20Tokenomics%20Architecture.png)
 
-The platform unifies all multi-cloud AI telemetry through a governed Medallion lifecycle:
-
-![Medallion Architecture](docs/Medallion%20Architecture.png)
+The platform unifies all multi-cloud AI telemetry through a governed Fabric lifecycle:
 
 1. **Raw Tier:** Immutable provider events from AWS Bedrock, GCP Vertex AI, OpenAI Direct, Anthropic Claude, and Azure API Management / Foundry land in Azure Blob Storage under `/tokenomics-raw/consumption/v1/{provider}/`.
-2. **Bronze / Silver Tier:** Operational pipelines and Fabric Dataflows cleanse, deduplicate, and pseudonymize user identifiers into Cosmos DB (`token-consumption`) and stage records into provider-specific Lakehouse Delta tables (`aws`, `gcp`, `oai`, `cld`, `msft`).
-3. **Gold FinOps Facts:** Fabric joins consumption timestamps with effective-dated rate cards from `model_price_history` into `ml.tokenomics_usage_fact`, producing audit-ready cost dimensions.
+2. **Cleansing & Staging Tier:** Operational pipelines and Fabric Dataflows cleanse, deduplicate, and pseudonymize user identifiers into Cosmos DB (`token-consumption`) and stage records into provider-specific Lakehouse token consumption tables (`aws`, `gcp`, `oai`, `cld`, `msft`).
+3. **Governed FinOps Facts:** Fabric joins consumption timestamps with effective-dated rate cards from `model_price_history` into `ml.tokenomics_usage_fact`, producing audit-ready cost dimensions.
 4. **Data Science & ML Output Tier:** 12 PySpark inference pipelines write predictions, health scores, ROI metrics, and recommendations strictly into `ml.*` output tables, recorded in `ml.ml_insight_fact` and tracked in `ml.model_run_ledger`.
-5. **Consumption & Serving Tier:** The Fabric SQL endpoint serves Power BI DirectQuery semantic models, the Ionic/Angular UI, and conversational queries via the Fabric Data Agent.
+5. **Consumption & Serving Tier:** The Fabric SQL endpoint serves Power BI DirectQuery semantic models, the Ionic/Angular UI, the Fabric Data Agent (natural-language Q&A over the Lakehouse), and the Foundry Agent that powers the CostOps chat experience.
 
 ```mermaid
 flowchart TD
@@ -101,8 +99,8 @@ flowchart TD
         Snap --> RateHist["model_price_history\n(Nonoverlapping Intervals)"]
     end
 
-    subgraph FabricMedallion["3. Fabric Medallion & ML"]
-        Cosmos -->|dfg2_cosmos_token_consumption| Bronze["Lakehouse Bronze/Silver\n(aws, gcp, oai, cld, msft)"]
+    subgraph FabricLakehouse["3. Fabric Lakehouse & ML"]
+        Cosmos -->|dfg2_cosmos_token_consumption| Bronze["Lakehouse Token Consumption Tables\n(aws, gcp, oai, cld, msft)"]
         LA -->|dfg2_foundry_log_analytics| Bronze
         Bronze & RateHist -->|As-Of Timestamp Join| Fact["ml.tokenomics_usage_fact"]
         Fact --> ML["12 ML Use Cases (Training & Inference)"]
@@ -113,7 +111,8 @@ flowchart TD
         Fact & MLTables --> SQL["Fabric SQL Endpoint"]
         SQL --> DirectQuery["Power BI DirectQuery\n(Tokenomics FinOps Model)"]
         DirectQuery --> Dashboards["Reports & Executive Dashboards"]
-        SQL --> DataAgent["Tokenomics FinOps Analyst\n(Fabric Data Agent)"]
+        SQL --> FabricDA["Fabric Data Agent\n(Natural Language Q&A)"]
+        FabricDA --> DataAgent["Foundry Agent\n(Tokenomics FinOps Analyst)"]
     end
 ```
 
@@ -508,13 +507,13 @@ A full-featured, responsive Angular application built with standalone components
 5. **12 ML Insight Dashboards:** Interactive visualization of all 12 PySpark ML use cases (anomaly flags, budget overrun risk probabilities, prompt quality scores, model optimization downgrade savings, and quota recommendations).
 6. **FinOps Action Center (closed feedback loop):** Turns the live `ml.*_output` tables into concrete, reviewable actions — model switching, APIM token/rate-limit changes, quota reallocation, throttle guardrails, prompt trimming, and chargeback — each with the source algorithm, a current→proposed change preview, projected impact, and an exportable plan. Served from the `GET /actions` API; nothing is hard-coded.
 7. **ML Guide (help):** Reference page explaining all 12 algorithms — what each does, the technique it uses, its highest-impact features, the output it produces, and how to turn that output into action.
-8. **Fabric Data Agent Chat & Saved Prompt Library:** Conversational AI interface communicating with the Fabric Data Agent, backed by a categorized, data-driven prompt library.
+8. **Foundry Agent Chat & Saved Prompt Library:** Conversational AI interface backed by a **Microsoft Foundry Agent** with function-tool access to the Lakehouse Gold and ML output tables, paired with a categorized, data-driven prompt library.
 
 ---
 
-## Fabric Data Agent & Configurable Prompt Library
+## Foundry Agent & Configurable Prompt Library
 
-The CostOps portal integrates directly with the **Fabric Data Agent** (`Tokenomics FinOps Analyst`). Users can execute natural language queries against governed Lakehouse Delta tables and receive structured analysis, SQL/DAX breakdowns, and actionable recommendations.
+The CostOps portal's chat experience is powered by a **Microsoft Foundry Agent** (`Tokenomics FinOps Analyst`) configured with function tools that query the same governed Lakehouse Delta tables served by the Fabric Data Agent via the Fabric SQL analytics endpoint. Users can execute natural language queries and receive structured analysis, SQL breakdowns, and actionable recommendations.
 
 ### Configurable Prompt Categories in Library
 
@@ -602,7 +601,7 @@ Angular/Ionic CostOps UI
   ├── GET  /powerbi/embed ──────────────┘        │
   └── Power BI embed (user-owns-data) ──> app.powerbi.com (DirectQuery on OneLake)
                                                   │
-   Chat: UI ─> FastAPI /chat ─> Foundry "Tokenomics" agent ─> APIM ─> Fabric Data Agent
+   Chat: UI ─> FastAPI /chat ─> Foundry "Tokenomics" agent (gpt-5.2 + function tools) ─> Fabric SQL endpoint (lh_tokenomics: Gold + ML output tables)
 ```
 
 The UI contains **no mock data**: dashboard, pricing, prompts, chat, and Power BI
