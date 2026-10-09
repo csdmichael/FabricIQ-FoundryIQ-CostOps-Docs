@@ -16,6 +16,7 @@ Enterprise-grade multi-cloud AI Tokenomics, LLM model pricing normalization, pre
 - [Foundry Agent & Configurable Prompt Library](#foundry-agent--configurable-prompt-library)
 - [Security, Privacy & Governance](#security-privacy--governance)
 - [Configuration & Deployment](#configuration--deployment)
+- [ACR by Service](#acr-by-service)
 - [Business Case & Value Proposition](#business-case--value-proposition)
 - [References](#references)
 
@@ -610,6 +611,17 @@ The UI contains **no mock data**: dashboard, pricing, prompts, chat, and Power B
 embeds are all sourced live. The FastAPI service and Foundry provisioning are fully
 config-driven from [`config/deployment.json`](config/deployment.json) and
 [`config/tokenomics-prompts.json`](config/tokenomics-prompts.json).
+
+---
+
+## ACR by Service
+
+See the [ACR by Service — Monthly Azure Resource Consumption](docs/acr-by-service/README.md)
+for an illustrative monthly Azure/Fabric resource estimate by environment: **Dev $1,209.46**,
+**Test $1,481.11**, and **Prod $2,875.07** — **total ACR $5,565.64/month**.
+Shared Power BI licenses add **$350.00**, bringing the platform total to **$5,915.64/month**.
+The guide includes a service-by-environment table, concise formulas, assumptions, and pricing references.
+Rates are planning assumptions, not current quotes; monitored enterprise AI workloads are excluded.
 
 ---
 
