@@ -617,11 +617,11 @@ config-driven from [`config/deployment.json`](config/deployment.json) and
 ## ACR by Service
 
 See the [ACR by Service — Monthly Azure Resource Consumption](docs/acr-by-service/README.md)
-for an illustrative **$3,225.07/month** platform estimate: **$2,875.07** in Azure/Fabric resource
-consumption plus **$350.00** in Power BI licenses. The guide provides a service-by-service table,
-calculation formulas, workload and sizing assumptions, exclusions, and official pricing references.
-Rates are editable planning assumptions, not current retail quotes; monitored enterprise AI workloads
-are separate from the platform's own operating cost.
+for an illustrative monthly Azure/Fabric resource estimate by environment: **Dev $1,209.46**,
+**Test $1,481.11**, and **Prod $2,875.07** — **total ACR $5,565.64/month**.
+Shared Power BI licenses add **$350.00**, bringing the platform total to **$5,915.64/month**.
+The guide includes a service-by-environment table, concise formulas, assumptions, and pricing references.
+Rates are planning assumptions, not current quotes; monitored enterprise AI workloads are excluded.
 
 ---
 
