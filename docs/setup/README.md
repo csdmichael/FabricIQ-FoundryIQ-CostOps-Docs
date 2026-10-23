@@ -14,6 +14,8 @@ The whole platform is **config-driven** from a single [`config/deployment.json`]
 and [`config/tokenomics-prompts.json`](https://github.com/csdmichael/FabricIQ-FoundryIQ-CostOps/blob/main/config/tokenomics-prompts.json).
 No values are hard-coded in code.
 
+> **Short on time?** Deploy everything with one script by following the **[Quick setup guide](quick-setup/README.md)**. It runs `scripts/deploy-all.ps1`, which executes the steps below in dependency order and creates the Fabric capacity and App Service plans when they do not exist yet.
+
 ## Table of Contents
 
 - [Before You Start](#before-you-start)
@@ -234,7 +236,9 @@ Content-Security-Policy `connect-src` in `ui/server.js` to your API/Power BI/log
 ### PowerShell Run Order
 
 Run from the repository root after configuration. Provisioning steps that reach Fabric/Foundry must run
-from a network that can reach those endpoints.
+from a network that can reach those endpoints. For the single-command path that runs these components in
+dependency order, use [`scripts/deploy-all.ps1`](https://github.com/csdmichael/FabricIQ-FoundryIQ-CostOps/blob/main/scripts/deploy-all.ps1)
+(see the [Quick setup guide](quick-setup/README.md)). The manual sequence below is kept for reference.
 
 ```powershell
 # 1. Provision the Fabric workspace, Lakehouse, and dataflows
@@ -258,7 +262,7 @@ pwsh scripts/build-ui.ps1
 ```
 
 Identity and APIM wiring can be applied with [`provision-identity.ps1`](https://github.com/csdmichael/FabricIQ-FoundryIQ-CostOps/blob/main/scripts/provision-identity.ps1)
-and the higher-level [`deploy.ps1`](https://github.com/csdmichael/FabricIQ-FoundryIQ-CostOps/blob/main/scripts/deploy.ps1); review each script before running.
+and the higher-level [`deploy-all.ps1`](https://github.com/csdmichael/FabricIQ-FoundryIQ-CostOps/blob/main/scripts/deploy-all.ps1), which runs every component in dependency order; review each script before running.
 
 ### Run the API and UI
 
